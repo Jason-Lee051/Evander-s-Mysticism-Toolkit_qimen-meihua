@@ -26,7 +26,7 @@ class ApiSettingsDialog(QDialog):
         self.base_url_edit = QLineEdit(self.current_config.get("base_url", "https://api.deepseek.com/v1"))
         form.addRow("Base URL:", self.base_url_edit)
 
-        self.model_edit = QLineEdit(self.current_config.get("model", "deepseek-chat"))
+        self.model_edit = QLineEdit(self.current_config.get("model", "deepseek-v4-flash"))
         form.addRow("Model:", self.model_edit)
 
         self.max_tokens_spin = QSpinBox()
@@ -59,7 +59,7 @@ class ApiSettingsDialog(QDialog):
             return {
                 "api_key": "",
                 "base_url": "https://api.deepseek.com/v1",
-                "model": "deepseek-chat",
+                "model": "deepseek-v4-flash",
                 "max_tokens": 4000,
                 "temperature": 0.7
             }

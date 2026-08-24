@@ -15,7 +15,7 @@ def load_config(config_path: str = "config/llm_config.json") -> dict:
         return {
             "api_key": "",
             "base_url": "https://api.deepseek.com/v1",
-            "model": "deepseek-chat",
+            "model": "deepseek-v4-flash",
             "max_tokens": 4000,
             "temperature": 0.7
         }
@@ -33,7 +33,7 @@ def analyze_qimen(result: dict, matter: str, location: str,
     if base_url is None:
         base_url = config.get("base_url", "https://api.deepseek.com/v1")
     if model is None:
-        model = config.get("model", "deepseek-chat")
+        model = config.get("model", "deepseek-v4-flash")
 
     if not api_key:
         return "错误：未配置 API Key，请在设置中填写后再试。"
@@ -66,7 +66,7 @@ def analyze_qimen_stream(result: dict, matter: str, location: str,
     if base_url is None:
         base_url = config.get("base_url", "https://api.deepseek.com/v1")
     if model is None:
-        model = config.get("model", "deepseek-chat")
+        model = config.get("model", "deepseek-v4-flash")
 
     if not api_key:
         yield "错误：未配置 API Key，请在设置中填写后再试。"
@@ -109,7 +109,7 @@ def analyze_meihua(gua_data: dict, question: str, background: str = "",
     if base_url is None:
         base_url = config.get("base_url", "https://api.deepseek.com/v1")
     if model is None:
-        model = config.get("model", "deepseek-chat")
+        model = config.get("model", "deepseek-v4-flash")
 
     if not api_key:
         return "错误：未配置 API Key"
@@ -142,7 +142,7 @@ def analyze_meihua_stream(gua_data: dict, question: str, background: str = "",
     if base_url is None:
         base_url = config.get("base_url", "https://api.deepseek.com/v1")
     if model is None:
-        model = config.get("model", "deepseek-chat")
+        model = config.get("model", "deepseek-v4-flash")
 
     if not api_key:
         yield "错误：未配置 API Key"

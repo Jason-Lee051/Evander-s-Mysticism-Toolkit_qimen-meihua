@@ -23,6 +23,18 @@ def load_config(config_path: str = "config/llm_config.json") -> dict:
         config = json.load(f)
     return config
 
+
+def _extra_body_for(model: str):
+    """
+    针对 DeepSeek V4 系列默认开启思考的问题，请求体关闭思考，避免思考
+    占满 max_tokens 导致正文字为空。仅对含 v4 的 deepseek 模型生效，
+    不影响其他 OpenAI 兼容模型。
+    """
+    m = (model or "").lower()
+    if m.startswith("deepseek") and "v4" in m:
+        return {"reasoning_effort": "none"}
+    return None
+
 # ---------- 奇门遁甲（原有） ----------
 def analyze_qimen(result: dict, matter: str, location: str,
                   api_key: str = None, base_url: str = None, model: str = None) -> str:
@@ -85,7 +97,8 @@ def analyze_qimen_stream(result: dict, matter: str, location: str,
             ],
             max_tokens=config.get("max_tokens", 2000),
             temperature=config.get("temperature", 0.7),
-            stream=True
+            stream=True,
+            extra_body=_extra_body_for(model)
         )
         for chunk in response:
             if not chunk.choices:
@@ -161,7 +174,8 @@ def analyze_meihua_stream(gua_data: dict, question: str, background: str = "",
             ],
             max_tokens=config.get("max_tokens", 2000),
             temperature=config.get("temperature", 0.7),
-            stream=True
+            stream=True,
+            extra_body=_extra_body_for(model)
         )
         for chunk in response:
             if not chunk.choices:

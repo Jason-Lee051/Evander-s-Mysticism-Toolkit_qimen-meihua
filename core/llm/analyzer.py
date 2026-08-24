@@ -16,7 +16,7 @@ def load_config(config_path: str = "config/llm_config.json") -> dict:
             "api_key": "",
             "base_url": "https://api.deepseek.com/v1",
             "model": "deepseek-chat",
-            "max_tokens": 2000,
+            "max_tokens": 4000,
             "temperature": 0.7
         }
     with open(config_path, "r", encoding="utf-8") as f:
@@ -93,10 +93,9 @@ def analyze_qimen_stream(result: dict, matter: str, location: str,
             delta = chunk.choices[0].delta
             if delta is None:
                 continue
-            # 兼容推理型模型：内容可能在 reasoning_content（思考过程）
-            text = delta.content or getattr(delta, "reasoning_content", None)
-            if text:
-                yield text
+            # 只输出最终答复内容，思考过程（reasoning_content）不上屏
+            if delta.content:
+                yield delta.content
     except Exception as e:
         yield f"分析失败：{str(e)}"
 
@@ -170,9 +169,8 @@ def analyze_meihua_stream(gua_data: dict, question: str, background: str = "",
             delta = chunk.choices[0].delta
             if delta is None:
                 continue
-            # 兼容推理型模型：内容可能在 reasoning_content（思考过程）
-            text = delta.content or getattr(delta, "reasoning_content", None)
-            if text:
-                yield text
+            # 只输出最终答复内容，思考过程（reasoning_content）不上屏
+            if delta.content:
+                yield delta.content
     except Exception as e:
         yield f"分析失败：{str(e)}"

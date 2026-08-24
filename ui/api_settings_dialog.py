@@ -30,8 +30,8 @@ class ApiSettingsDialog(QDialog):
         form.addRow("Model:", self.model_edit)
 
         self.max_tokens_spin = QSpinBox()
-        self.max_tokens_spin.setRange(100, 8000)
-        self.max_tokens_spin.setValue(self.current_config.get("max_tokens", 2000))
+        self.max_tokens_spin.setRange(100, 16000)
+        self.max_tokens_spin.setValue(self.current_config.get("max_tokens", 4000))
         form.addRow("Max Tokens:", self.max_tokens_spin)
 
         self.temperature_spin = QDoubleSpinBox()
@@ -60,7 +60,7 @@ class ApiSettingsDialog(QDialog):
                 "api_key": "",
                 "base_url": "https://api.deepseek.com/v1",
                 "model": "deepseek-chat",
-                "max_tokens": 2000,
+                "max_tokens": 4000,
                 "temperature": 0.7
             }
 

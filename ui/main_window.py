@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (QMainWindow, QLabel, QMenuBar, QStatusBar,
                                QVBoxLayout, QHBoxLayout, QWidget, QPushButton,
                                QApplication, QSplitter, QTextEdit, QMessageBox)
 from PySide6.QtGui import QAction, QTextCursor, QFont
-from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtCore import Qt, QThread, Signal, QTimer
 from datetime import datetime
 
 # 奇门遁甲
@@ -174,6 +174,13 @@ class MainWindow(QMainWindow):
         self.result_view = None
         self.analysis_text_edit = None
 
+        # AI 思考状态指示（动态省略号）
+        self._thinking_active = False
+        self._thinking_ticks = 0
+        self.thinking_timer = QTimer(self)
+        self.thinking_timer.setInterval(400)
+        self.thinking_timer.timeout.connect(self._on_thinking_tick)
+
     # ---------- 奇门遁甲 ----------
     def on_qimen_start(self):
         # 隐藏欢迎界面
@@ -335,20 +342,47 @@ class MainWindow(QMainWindow):
         self.analysis_worker.text_chunk.connect(self.append_analysis_text)
         self.analysis_worker.finished.connect(self.on_analysis_finished)
         self.analysis_worker.error.connect(self.on_analysis_error)
+        self._start_thinking()
         self.analysis_worker.start()
 
+    # ---------- 思考状态指示 ----------
+    def _start_thinking(self):
+        self._thinking_active = True
+        self._thinking_ticks = 0
+        if self.analysis_text_edit:
+            self.analysis_text_edit.setPlainText("正在思考分析中")
+        self.thinking_timer.start()
+
+    def _stop_thinking(self):
+        self._thinking_active = False
+        self._thinking_ticks = 0
+        self.thinking_timer.stop()
+
+    def _on_thinking_tick(self):
+        if not self._thinking_active or not self.analysis_text_edit:
+            return
+        self._thinking_ticks += 1
+        dots = "." * ((self._thinking_ticks - 1) % 3 + 1)
+        self.analysis_text_edit.setPlainText(f"正在思考分析中{dots}")
+
     def append_analysis_text(self, text):
+        # 思考结束、开始输出正文时，清掉“正在思考”占位
+        if self._thinking_active:
+            self._stop_thinking()
+            self.analysis_text_edit.clear()
         if self.analysis_text_edit:
             self.analysis_text_edit.moveCursor(QTextCursor.MoveOperation.End)
             self.analysis_text_edit.insertPlainText(text)
             self.analysis_text_edit.moveCursor(QTextCursor.MoveOperation.End)
 
     def on_analysis_finished(self):
+        self._stop_thinking()
         self.status_bar.showMessage("分析完成")
         self.analyze_button.setEnabled(True)
         self.analysis_worker = None
 
     def on_analysis_error(self, err):
+        self._stop_thinking()
         self.status_bar.showMessage(f"分析错误: {err}")
         self.analysis_text_edit.append(f"\n[错误] {err}")
         self.analyze_button.setEnabled(True)

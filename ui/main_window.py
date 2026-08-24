@@ -21,7 +21,7 @@ from .meihua_view import MeihuaView
 
 # LLM
 from core.llm.analyzer import (
-    analyze_qimen_stream, analyze_meihua_stream,
+    analyze_qimen, analyze_meihua,
     load_config
 )
 
@@ -60,18 +60,19 @@ class AnalysisWorker(QThread):
         self.model = model
     def run(self):
         try:
+            # 使用非流式接口一次取回完整回答（对推理型模型更可靠）
             if self.method == 'qimen':
-                generator = analyze_qimen_stream(
+                text = analyze_qimen(
                     self.data, self.matter, self.location,
                     self.api_key, self.base_url, self.model
                 )
             else:  # meihua
-                generator = analyze_meihua_stream(
+                text = analyze_meihua(
                     self.data, self.matter, self.location,
                     self.api_key, self.base_url, self.model
                 )
-            for chunk in generator:
-                self.text_chunk.emit(chunk)
+            if text:
+                self.text_chunk.emit(text)
             self.finished.emit()
         except Exception as e:
             self.error.emit(str(e))

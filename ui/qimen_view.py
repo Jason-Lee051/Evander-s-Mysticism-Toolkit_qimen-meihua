@@ -123,3 +123,22 @@ class QimenView(QWidget):
             painter.setFont(font)
             painter.drawText(QRectF(x0 + cell/2 - 10, y0 + cell/2 - 12, 20, 20),
                              Qt.AlignCenter, str(gong))
+
+            # 7. 四害/马星标记（宫号下方小字）
+            tags = []
+            if info.get('kongwang'):
+                tags.append('空')
+            if info.get('jixing'):
+                tags.append('刑')
+            if info.get('rumu'):
+                tags.append('墓')
+            if info.get('menpo'):
+                tags.append('迫')
+            if info.get('maxing'):
+                tags.append('马')
+            if tags:
+                painter.setPen(QColor('#ff6b6b'))
+                font = QFont("SimHei", 9, QFont.Bold)
+                painter.setFont(font)
+                painter.drawText(QRectF(x0 + cell/2 - 10, y0 + cell - 40, cell, 16),
+                                 Qt.AlignHCenter, "·".join(tags))

@@ -2,3 +2,5 @@ PySide6>=6.5
 ephem>=4.1
 matplotlib>=3.7
 openai>=1.0
+# 可选：梅花易数农历/笔画起卦精度（缺省自动降级，不影响运行）
+lunar_python>=1.2

@@ -2,7 +2,8 @@
 core/meihua/paipan.py - 排卦：构建本卦、变卦、互卦，计算体用
 """
 from typing import Dict, List, Tuple
-from .bagua import TRIGRAM_MAP, TRIGRAM_WUXING, get_gua_name
+from .bagua import TRIGRAM_MAP, TRIGRAM_WUXING, get_gua_name, get_gua_ci
+import datetime
 
 def build_full_gua(upper_num: int, lower_num: int, moving_line: int) -> Dict:
     """
@@ -23,6 +24,7 @@ def build_full_gua(upper_num: int, lower_num: int, moving_line: int) -> Dict:
         "lower_wuxing": lower_info["wuxing"],
         "name": get_gua_name(upper_info["name"], lower_info["name"]),
         "moving_line": moving_line,
+        "gua_ci": get_gua_ci(get_gua_name(upper_info["name"], lower_info["name"])),
     }
 
     # 变卦：动爻阴阳互换
@@ -89,6 +91,7 @@ def build_full_gua(upper_num: int, lower_num: int, moving_line: int) -> Dict:
         "lower": bian_lower_num,
         "lower_name": bian_lower_info["name"],
         "name": get_gua_name(bian_upper_info["name"], bian_lower_info["name"]),
+        "gua_ci": get_gua_ci(get_gua_name(bian_upper_info["name"], bian_lower_info["name"])),
     }
 
     # 互卦：取本卦的二、三、四爻为下卦（从下往上索引1,2,3），三、四、五爻为上卦（索引2,3,4）
@@ -109,6 +112,7 @@ def build_full_gua(upper_num: int, lower_num: int, moving_line: int) -> Dict:
         "lower": hu_lower_num,
         "lower_name": hu_lower_info["name"],
         "name": get_gua_name(hu_upper_info["name"], hu_lower_info["name"]),
+        "gua_ci": get_gua_ci(get_gua_name(hu_upper_info["name"], hu_lower_info["name"])),
     }
 
     # 体用：体卦为不含动爻的卦（通常为下卦），用卦为含动爻的卦（上卦）
@@ -153,6 +157,10 @@ def build_full_gua(upper_num: int, lower_num: int, moving_line: int) -> Dict:
     else:
         relation = "体用比和（吉）"
 
+    # 月令五行旺衰（占问当下之令）
+    now = datetime.datetime.now()
+    ti_shi, yong_shi = _wuxing_wangshuai(ti_wuxing, yong_wuxing, now)
+
     return {
         "ben_gua": ben_gua,
         "bian_gua": bian_gua,
@@ -164,6 +172,46 @@ def build_full_gua(upper_num: int, lower_num: int, moving_line: int) -> Dict:
         "yong_name": yong_info["name"],
         "yong_wuxing": yong_wuxing,
         "relation": relation,
+        "ti_shi": ti_shi,
+        "yong_shi": yong_shi,
+        "month": now.month,
         "ben_lines": ben_lines,   # 六爻列表0-5
         "bian_lines": bian_lines,
     }
+
+
+# 四季卦气旺衰：春木、夏火、秋金、冬水、四季末月土
+_MONTH_OWNER = {1: '木', 2: '木', 3: '木', 4: '火', 5: '火', 6: '火',
+                7: '金', 8: '金', 9: '金', 10: '水', 11: '水', 12: '水'}
+# 四季末月（辰戌丑未）士旺：农历以3/6/9/12月末，此处用公历近似 3、6、9、12 月
+_MONTH_EARTH = {3, 6, 9, 12}
+# 五行相生（用于判断得生）
+WUXING_SHENG = {'金': '水', '水': '木', '木': '火', '火': '土', '土': '金'}
+
+
+def _month_wuxing(dt: datetime.datetime) -> str:
+    """当前月令五行（用于判定卦气旺衰，公历近似）"""
+    if dt.month in _MONTH_EARTH:
+        return '土'
+    return _MONTH_OWNER.get(dt.month, '土')
+
+
+def _wuxing_wangshuai(ti_wx: str, yong_wx: str, dt: datetime.datetime):
+    """依据月令返回 (体卦旺衰说明, 用卦旺衰说明)"""
+    owner = _month_wuxing(dt)
+    ti = _single_wangshuai(ti_wx, owner)
+    yo = _single_wangshuai(yong_wx, owner)
+    return f"{ti_wx}卦当令" if ti_wx == owner else f"{ti_wx}卦{ti}", \
+           f"{yong_wx}卦当令" if yong_wx == owner else f"{yong_wx}卦{yo}"
+
+
+def _single_wangshuai(wx: str, owner: str) -> str:
+    """单五行的旺/相/休/囚/死粗判（得令之王、受生为相，大体标注）"""
+    if wx == owner:
+        return "当令旺相"
+    if WUXING_SHENG.get(owner) == wx:
+        return "受生得助"
+    if WUXING_SHENG.get(wx) == owner:
+        return "泄气休"
+    # 多数情况简化为：被月令所生则为受生，其余标注"平"。这里按五行生克再判
+    return "平"

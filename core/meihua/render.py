@@ -11,12 +11,18 @@ def format_meihua_result(gua_data: dict) -> str:
     hu = gua_data["hu_gua"]
 
     lines.append(f"本卦：{ben['name']}（上{ben['upper_name']}下{ben['lower_name']}）")
+    if ben.get("gua_ci"):
+        lines.append(f"本卦卦辞：{ben['gua_ci']}")
     lines.append(f"变卦：{bian['name']}（上{bian['upper_name']}下{bian['lower_name']}）")
+    if bian.get("gua_ci"):
+        lines.append(f"变卦卦辞：{bian['gua_ci']}")
     lines.append(f"互卦：{hu['name']}（上{hu['upper_name']}下{hu['lower_name']}）")
     lines.append(f"动爻：第{ben['moving_line']}爻")
     lines.append(f"体卦：{gua_data['ti_name']}（{gua_data['ti_wuxing']}）")
     lines.append(f"用卦：{gua_data['yong_name']}（{gua_data['yong_wuxing']}）")
     lines.append(f"体用关系：{gua_data['relation']}")
+    if gua_data.get("ti_shi"):
+        lines.append(f"卦气旺衰（月令）：体{gua_data['ti_shi']}，用{gua_data['yong_shi']}")
 
     # 显示六爻
     lines.append("\n六爻（从下往上）:")

@@ -6,7 +6,7 @@ core/qimen/paipan.py - 奇门遁甲时家排盘核心算法
 import datetime
 from typing import Dict, Any
 from core.qimen.calendar import (
-    day_ganzhi, hour_ganzhi, get_solar_terms, find_ju_and_dun,
+    day_ganzhi, hour_ganzhi, get_solar_terms, solar_terms_covering, find_ju_and_dun,
     TIAN_GAN, DI_ZHI, JIA_ZI
 )
 
@@ -37,6 +37,103 @@ XUN_SHOU_MAP = {
 STAR_BASE_GONG = {'天蓬':1, '天芮':2, '天冲':3, '天辅':4, '天禽':5, '天心':6, '天柱':7, '天任':8, '天英':9}
 DOOR_BASE_GONG = {'休门':1, '死门':2, '伤门':3, '杜门':4, '景门':9, '惊门':7, '开门':6, '生门':8}
 
+# ========== 断局要诀数据 ==========
+# 九宫五行
+GONG_WUXING = {1: '水', 2: '土', 3: '木', 4: '木', 5: '土', 6: '金', 7: '金', 8: '土', 9: '火'}
+# 八门五行
+DOOR_WUXING = {'休门': '水', '生门': '土', '伤门': '木', '杜门': '木',
+               '景门': '火', '死门': '土', '惊门': '金', '开门': '金'}
+# 地支 -> 后天九宫
+DIZHI_GONG = {0: 1, 1: 8, 2: 8, 3: 3, 4: 4, 5: 4, 6: 9, 7: 2,
+              8: 7, 9: 7, 10: 6, 11: 6}  # 子丑寅卯辰巳午未申酉戌亥
+
+# 六甲旬空亡（时柱旬首）
+XUN_KONG = {
+    '甲子': ['戌', '亥'],  # 乾宫
+    '甲戌': ['申', '酉'],  # 兑宫
+    '甲申': ['午', '未'],  # 离/坤宫
+    '甲午': ['辰', '巳'],  # 巽宫
+    '甲辰': ['寅', '卯'],  # 艮/震宫
+    '甲寅': ['子', '丑'],  # 坎/艮宫
+}
+
+# 驿马（按局内时支）：申子辰马在寅，寅午戌马在申，巳酉丑马在亥，亥卯未马在巳
+MAXING_DIZHI = {
+    (0, 3, 6): 2,   # 申子辰 -> 寅(8宫)
+    (2, 6, 9): 8,   # 寅午戌 -> 申(7宫)
+    (5, 8, 11): 11,  # 巳酉丑 -> 亥(6宫)
+    (11, 3, 7): 5,  # 亥卯未 -> 巳(4宫)
+}
+
+# 天干入墓（六仪三奇入墓宫）
+GAN_MU_GONG = {'乙': 6, '丙': 6, '戊': 6,   # 乾宫（戌）
+               '丁': 8, '己': 8, '庚': 8,   # 艮宫（丑）
+               '辛': 4, '壬': 4,            # 巽宫（辰）
+               '癸': 2}                     # 坤宫（未）
+
+# 六仪击刑（六仪落宫）
+GAN_JIXING_GONG = {'戊': 3, '己': 2, '庚': 8, '辛': 9, '壬': 4, '癸': 4}
+
+# 五行相克
+WUXING_KE = {'水': '火', '火': '金', '金': '木', '木': '土', '土': '水'}
+
+
+def _xun_key(hour_gz_idx: int) -> str:
+    """返回时柱所属六甲旬首名"""
+    for name, idx in [('甲子', 0), ('甲戌', 10), ('甲申', 20), ('甲午', 30), ('甲辰', 40), ('甲寅', 50)]:
+        if idx <= hour_gz_idx < idx + 10:
+            return name
+    return '甲子'
+
+
+def _maxing(hour_gz_idx: int):
+    """返回时支的驿马地支"""
+    hour_dz = hour_gz_idx % 12
+    for keys, ma in MAXING_DIZHI.items():
+        if hour_dz in keys:
+            return DI_ZHI[ma]
+    return ''
+
+
+def analyze_harm(pan_info: list, hour_gz_idx: int, gong_wuxing: dict):
+    """
+    就地给 pan_info 中每一宫标注四害与马星：
+      kongwang: 该宫是否为时柱空亡
+      jixing  : 该宫天盘干/地盘干是否入击刑
+      rumu    : 该宫地盘干是否入墓
+      menpo   : 该宫之门是否门迫（门克宫）
+      maxing  : 该宫是否为驿马所在
+    """
+    # 空亡
+    xun = _xun_key(hour_gz_idx)
+    kong_dizhis = XUN_KONG.get(xun, [])
+    kong_gongs = set(DIZHI_GONG[DI_ZHI.index(d)] for d in kong_dizhis)
+
+    # 驿马
+    ma_dz = _maxing(hour_gz_idx)
+    ma_gong = DIZHI_GONG[DI_ZHI.index(ma_dz)] if ma_dz else None
+
+    for info in pan_info:
+        gong = info['gong']
+        info['kongwang'] = gong in kong_gongs
+        info['maxing'] = (gong == ma_gong)
+
+        # 击刑：看天盘干与地盘干（重点六仪）
+        info['jixing'] = any(
+            GAN_JIXING_GONG.get(gan) == gong
+            for gan in (info.get('tian_pan'), info.get('di_pan')) if gan
+        )
+        # 入墓：看地盘干（也可看天盘干）
+        info['rumu'] = GAN_MU_GONG.get(info.get('di_pan', '')) == gong
+
+        # 门迫：门五行克宫五行
+        door = info.get('door', '')
+        if door and gong_wuxing.get(gong):
+            door_wx = DOOR_WUXING.get(door)
+            info['menpo'] = bool(door_wx) and (WUXING_KE.get(door_wx) == gong_wuxing.get(gong))
+        else:
+            info['menpo'] = False
+
 
 def pai_pan(current_dt: datetime.datetime, matter: str = "", location: str = "") -> Dict[str, Any]:
     """
@@ -45,9 +142,7 @@ def pai_pan(current_dt: datetime.datetime, matter: str = "", location: str = "")
     matter, location: 用户输入的事项和位置
     """
     # 1. 节气与用局
-    year = current_dt.year
-    terms = get_solar_terms(year)
-    # 如果靠近年尾，可能需要下一年的节气，此处简化，以当前年份计算
+    terms = solar_terms_covering(current_dt)
     dun_type, ju, jieqi, yuan = find_ju_and_dun(current_dt, terms)
 
     # 2. 日柱时柱
@@ -176,6 +271,9 @@ def pai_pan(current_dt: datetime.datetime, matter: str = "", location: str = "")
         }
         pan_info.append(info)
 
+    # 9. 断局要诀：四害（空亡、入墓、门迫、击刑）与马星
+    analyze_harm(pan_info, hour_gz_idx, GONG_WUXING)
+
     return {
         'dun_type': dun_type,
         'ju': ju,
@@ -187,4 +285,11 @@ def pai_pan(current_dt: datetime.datetime, matter: str = "", location: str = "")
         'location': location,
         'datetime': current_dt.strftime("%Y-%m-%d %H:%M"),
         'pan_info': pan_info,
+        'kongwang_dizhi': XUN_KONG.get(_xun_key(hour_gz_idx), []),
+        'maxing_dizhi': _maxing(hour_gz_idx),
+        'jixing_gong': [i['gong'] for i in pan_info if i.get('jixing')],
+        'rumu_gong': [i['gong'] for i in pan_info if i.get('rumu')],
+        'menpo_gong': [i['gong'] for i in pan_info if i.get('menpo')],
+        'kongwang_gong': [i['gong'] for i in pan_info if i.get('kongwang')],
+        'maxing_gong': [i['gong'] for i in pan_info if i.get('maxing')],
     }

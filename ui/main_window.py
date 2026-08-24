@@ -211,6 +211,7 @@ class MainWindow(QMainWindow):
             {'name': 'num2', 'label': '第二个数字', 'type': 'text', 'default': '', 'visible_if': {'field': 'method', 'value': '数字起卦'}},
             {'name': 'num3', 'label': '第三个数字', 'type': 'text', 'default': '', 'visible_if': {'field': 'method', 'value': '数字起卦'}},
             {'name': 'char_text', 'label': '输入汉字', 'type': 'text', 'default': '', 'visible_if': {'field': 'method', 'value': '汉字起卦'}},
+            {'name': 'char_mode', 'label': '起卦方式', 'type': 'select', 'default': '笔画数法', 'options': ['笔画数法', '字数法'], 'visible_if': {'field': 'method', 'value': '汉字起卦'}},
             {'name': 'question', 'label': '所问事项', 'type': 'text', 'default': ''},
             {'name': 'background', 'label': '背景信息（可选）', 'type': 'text', 'default': ''},
         ]
@@ -245,7 +246,14 @@ class MainWindow(QMainWindow):
                     QMessageBox.warning(self, "提示", "请输入汉字")
                     self.welcome_widget.setVisible(True)
                     return
-                upper, lower, moving = qigua_by_characters(text, mode="word")
+                char_mode = values.get('char_mode', '笔画数法')
+                mode = 'stroke' if char_mode == '笔画数法' else 'word'
+                try:
+                    upper, lower, moving = qigua_by_characters(text, mode=mode)
+                except NotImplementedError as e:
+                    QMessageBox.warning(self, "提示", str(e))
+                    self.welcome_widget.setVisible(True)
+                    return
         except Exception as e:
             QMessageBox.critical(self, "起卦错误", str(e))
             self.welcome_widget.setVisible(True)

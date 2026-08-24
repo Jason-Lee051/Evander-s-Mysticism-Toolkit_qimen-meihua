@@ -19,6 +19,11 @@ BASE_GANZHI_DAY = 39
 # 节气缓存：key=年份, value=OrderedDict
 _TERMS_CACHE = {}
 
+def year_ganzhi(year: int) -> tuple:
+    """年份干支（旧历以立春换年，此处用公历年份近似：1984 为甲子）"""
+    idx = (year - 1984) % 60
+    return idx, JIA_ZI[idx]
+
 def day_ganzhi(date: datetime.date) -> tuple:
     delta = (date - BASE_DATE).days
     idx = (BASE_GANZHI_DAY + delta) % 60
@@ -77,9 +82,25 @@ def get_solar_terms(year: int) -> OrderedDict:
     _TERMS_CACHE[year] = terms
     return terms
 
-def find_ju_and_dun(current_dt: datetime.datetime, terms: OrderedDict) -> tuple:
+def solar_terms_covering(current_dt: datetime.datetime) -> list:
     """
-    根据当前时间和节气字典返回 (dun_type, ju, jieqi, yuan)
+    返回覆盖 current_dt 的按时间排序的节气列表 [(name, datetime), ...]。
+    get_solar_terms(y) 只覆盖当年春分到次年惊蛰，冬季（1-2月）会缺失上一年冬至，
+    故合并前一年与当年的节气后再排序去重，修复跨年取不到节气的问题。
+    """
+    seen = {}
+    for y in (current_dt.year - 1, current_dt.year):
+        for name, dt in get_solar_terms(y).items():
+            # 同一节气名保留时间较晚的一条（关键日期去重）
+            seen[(name, dt.date())] = (name, dt)
+    items = sorted(seen.values(), key=lambda x: x[1])
+    return items
+
+def find_ju_and_dun(current_dt: datetime.datetime, terms: list) -> tuple:
+    """
+    根据当前时间和节气列表返回 (dun_type, ju, jieqi, yuan)
+    current_dt: datetime
+    terms: solar_terms_covering() 返回的 [(name, datetime), ...] 时间升序列表
     dun_type: '阳遁' 或 '阴遁'
     ju: 局数 1-9
     jieqi: 节气名
@@ -97,17 +118,15 @@ def find_ju_and_dun(current_dt: datetime.datetime, terms: OrderedDict) -> tuple:
         "立冬": (6, 9, 3), "小雪": (5, 8, 2), "大雪": (4, 7, 1),
     }
 
-    # 按时间排序节气
-    sorted_terms = sorted(terms.items(), key=lambda x: x[1])
-    # 查找当前时间所属的节气
+    # 查找当前时间所属的节气：取最近一个已到节气（terms 时间升序）
     current_jq = None
-    for i, (name, dt) in enumerate(sorted_terms):
-        next_dt = sorted_terms[(i+1) % len(sorted_terms)][1]
-        if dt <= current_dt < next_dt:
+    for name, dt in terms:
+        if dt <= current_dt:
             current_jq = name
+        else:
             break
-    if current_jq is None:  # 可能跨年，取最后一个节气
-        current_jq = sorted_terms[-1][0]
+    if current_jq is None:  # 数据覆盖异常时的兜底
+        current_jq = terms[-1][0]
 
     # 判断阴阳遁
     yang_dun_jq = ["冬至","小寒","大寒","立春","雨水","惊蛰","春分","清明","谷雨","立夏","小满","芒种"]

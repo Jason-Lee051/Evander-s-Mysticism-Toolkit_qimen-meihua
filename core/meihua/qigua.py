@@ -1,10 +1,28 @@
 """
 core/meihua/qigua.py - 起卦方法（数字、时间、汉字等）
+
+说明：时间起卦传统需用农历（年支+农历月日+时支）。这里优先使用
+lunar_python 库（pip install lunar_python）以获得准确农历；若未安装则降级
+为近似算法（年支依公历年份换算、月日用公历），保证程序仍可运行。
 """
 import datetime
 from typing import Tuple
 
 from .bagua import TRIGRAM_MAP
+
+# 十二地支序数（子1...亥12）
+DI_ZHI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥']
+
+_LUNAR_OK = False
+_LUNAR_ERR = None
+try:
+    from lunar_python import Lunar, Char  # type: ignore
+    _LUNAR_OK = True
+except Exception as _e:  # 未安装 lunar_python 时降级
+    _LUNAR_ERR = _e
+    Lunar = None
+    Char = None
+
 
 def qigua_by_number(num1: int, num2: int, num3: int) -> Tuple[int, int, int]:
     """
@@ -23,51 +41,92 @@ def qigua_by_number(num1: int, num2: int, num3: int) -> Tuple[int, int, int]:
         moving = 6
     return upper, lower, moving
 
+
+def _hour_zhi(hour: int) -> int:
+    """将小时转换为时辰地支序数（子时23-1为1，丑时1-3为2 ... 亥时21-23为12）"""
+    return (hour + 1) // 2 % 12 + 1
+
+
+def _mod8(n: int) -> int:
+    return n % 8 if n % 8 != 0 else 8
+
+
+def _mod6(n: int) -> int:
+    return n % 6 if n % 6 != 0 else 6
+
+
 def qigua_by_time(dt: datetime.datetime) -> Tuple[int, int, int]:
     """
-    时间起卦：使用年、月、日、时（地支数）计算
-    年：公历年份，月：数字1-12，日：数字1-31，时：地支序数（子1...亥12）
-    上卦 = (年 + 月 + 日) % 8，下卦 = (年 + 月 + 日 + 时) % 8，动爻 = (年 + 月 + 日 + 时) % 6
-    注意：传统多用农历，此处简化用公历数字，如需农历请引入第三方库
+    时间起卦：上卦=(年支+月+日)%8，下卦=(年支+月+日+时支)%8，
+    动爻=(年支+月+日+时支)%6。
+    传统取年支序数、农历月日；末安装 lunar_python 时降级用公历。
     """
-    year = dt.year
-    month = dt.month
-    day = dt.day
-    hour = dt.hour
-    # 时辰地支序数（子时23-1为1，丑时1-3为2，... 亥时21-23为12）
-    # 简化：用小时对应地支，这里取 hour//2 + 1（23点为子时）
-    di_zhi = (hour + 1) // 2 % 12 + 1  # 1-12
+    hour_zhi = _hour_zhi(dt.hour)
 
-    upper_num = (year + month + day) % 8
-    if upper_num == 0:
-        upper_num = 8
-    lower_num = (year + month + day + di_zhi) % 8
-    if lower_num == 0:
-        lower_num = 8
-    moving = (year + month + day + di_zhi) % 6
-    if moving == 0:
-        moving = 6
+    if _LUNAR_OK:
+        lunar = Lunar.fromDate(dt.date())
+        year_gz = lunar.getYearInGanZhiExact()      # 如 "甲辰"
+        year_zhi = DI_ZHI.index(year_gz[-1]) + 1     # 年支序数
+        month = abs(lunar.getMonth())                # 农历月（闰月取绝对值）
+        day = lunar.getDay()                          # 农历日
+    else:
+        # 降级：年支序数按公历年份近似（1900 庚子=子=1）
+        year_zhi = (dt.year - 1900) % 12 + 1
+        month = dt.month
+        day = dt.day
+
+    upper_num = _mod8(year_zhi + month + day)
+    lower_num = _mod8(year_zhi + month + day + hour_zhi)
+    moving = _mod6(year_zhi + month + day + hour_zhi)
     return upper_num, lower_num, moving
 
-def qigua_by_characters(text: str, mode: str = "stroke") -> Tuple[int, int, int]:
+
+# ---- 汉字笔画工具（依赖 lunar_python，缺失时优雅降级） ----
+def _char_stroke(ch: str) -> int:
+    if not _LUNAR_OK:
+        raise NotImplementedError(_lunar_missing_msg())
+    return Char(ch).getStrokeCount()
+
+
+def _lunar_missing_msg() -> str:
+    return "笔画数与准确农历起卦需要 lunar_python 库，请先运行：pip install lunar_python"
+
+
+def _stroke_count(text: str) -> int:
+    return sum(_char_stroke(c) for c in text if c.strip())
+
+
+def _split_halves(seq):
+    """把序列尽量平均分成前、后两份（前多后少）"""
+    half = len(seq) // 2
+    if len(seq) % 2 == 1:
+        half = len(seq) // 2 + 1
+    return seq[:half], seq[half:]
+
+
+def qigua_by_characters(text: str, mode: str = "word") -> Tuple[int, int, int]:
     """
-    汉字起卦（测字）：按笔画数或字数
-    mode: 'stroke' 笔画数（需要汉字笔画库，未实现），'word' 字数
-    当前仅支持按字数：上卦 = 总字数 % 8，下卦 = 第一个字笔画（暂用1），动爻 = 总字数 % 6
-    实际使用请完善笔画数
+    汉字起卦（测字）：
+      mode='word'  ：按字数法。多字按前后各半取上下卦，总字数取动爻。
+      mode='stroke'：按笔画数法。前段总笔画为上卦，后段总笔画为下卦，
+                     总笔画数取动爻。（需要 lunar_python 提供笔画库）
     """
+    text = text.strip()
+    if not text:
+        raise ValueError("请输入汉字")
+
     if mode == "word":
-        total = len(text)
-        upper = total % 8
-        if upper == 0:
-            upper = 8
-        # 下卦可取第二个数，这里简单用第一个字的笔画数（暂为1）
-        # 实际需要笔画库，此处简化
-        lower = 1  # 待完善
-        moving = total % 6
-        if moving == 0:
-            moving = 6
+        upper_part, lower_part = _split_halves(text)
+        upper = _mod8(len(upper_part))
+        lower = _mod8(len(lower_part)) if lower_part else upper
+        moving = _mod6(len(text))
         return upper, lower, moving
-    else:
-        # 笔画数模式需映射表，本示例未实现
-        raise NotImplementedError("笔画数起卦需汉字笔画数据库，暂未支持")
+
+    elif mode == "stroke":
+        upper_part, lower_part = _split_halves(text)
+        upper = _mod8(sum(_char_stroke(c) for c in upper_part if c.strip()))
+        lower = _mod8(sum(_char_stroke(c) for c in lower_part if c.strip())) if lower_part else upper
+        moving = _mod6(sum(_char_stroke(c) for c in text if c.strip()))
+        return upper, lower, moving
+
+    raise ValueError(f"未知起卦模式：{mode}")

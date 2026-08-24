@@ -56,9 +56,14 @@ class MeihuaView(QWidget):
                 painter.setFont(font2)
                 painter.drawText(QRectF(x_center + line_len/2 + 10, y-8, 30, 16), "动")
 
-        # 显示卦名和五行
+        # 显示卦名和体用、旺衰
         painter.setPen(QColor("gray"))
         font = QFont("SimHei", 10)
         painter.setFont(font)
         painter.drawText(QRectF(10, h-30, w-20, 20), Qt.AlignLeft, f"体:{self.gua_data['ti_name']}({self.gua_data['ti_wuxing']}) 用:{self.gua_data['yong_name']}({self.gua_data['yong_wuxing']})")
-        painter.drawText(QRectF(10, h-50, w-20, 20), Qt.AlignLeft, f"关系: {self.gua_data['relation']}")
+        painter.drawText(QRectF(10, h-50, w-20, 20), Qt.AlignLeft, f"旺衰:体{self.gua_data.get('ti_shi','')} 用{self.gua_data.get('yong_shi','')}")
+        painter.drawText(QRectF(10, h-70, w-20, 20), Qt.AlignLeft, f"关系: {self.gua_data['relation']}")
+        # 卦辞（本卦）
+        if self.gua_data.get("ben_gua", {}).get("gua_ci"):
+            painter.drawText(QRectF(10, 46, w-20, h-90), Qt.AlignLeft | Qt.TextWordWrap,
+                             f"卦辞：{self.gua_data['ben_gua']['gua_ci']}")

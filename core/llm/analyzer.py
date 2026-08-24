@@ -88,8 +88,15 @@ def analyze_qimen_stream(result: dict, matter: str, location: str,
             stream=True
         )
         for chunk in response:
-            if chunk.choices[0].delta.content is not None:
-                yield chunk.choices[0].delta.content
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+            if delta is None:
+                continue
+            # 兼容推理型模型：内容可能在 reasoning_content（思考过程）
+            text = delta.content or getattr(delta, "reasoning_content", None)
+            if text:
+                yield text
     except Exception as e:
         yield f"分析失败：{str(e)}"
 
@@ -158,7 +165,14 @@ def analyze_meihua_stream(gua_data: dict, question: str, background: str = "",
             stream=True
         )
         for chunk in response:
-            if chunk.choices[0].delta.content is not None:
-                yield chunk.choices[0].delta.content
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+            if delta is None:
+                continue
+            # 兼容推理型模型：内容可能在 reasoning_content（思考过程）
+            text = delta.content or getattr(delta, "reasoning_content", None)
+            if text:
+                yield text
     except Exception as e:
         yield f"分析失败：{str(e)}"

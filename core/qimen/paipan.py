@@ -174,11 +174,6 @@ def pai_pan(current_dt: datetime.datetime, matter: str = "", location: str = "")
     zhi_fu_star, zhi_shi_door = XUN_SHOU_MAP[xun_shou_name]
 
     # 5. 天盘干排布：时干落宫，将旬首对应的六仪加到时干宫
-    shi_gan_gong = None
-    for g, gan in di_pan.items():
-        if gan == hour_tg:
-            shi_gan_gong = g
-            break
     # 旬首六仪
     xun_shou_gan = {'甲子':'戊','甲戌':'己','甲申':'庚','甲午':'辛','甲辰':'壬','甲寅':'癸'}[xun_shou_name]
     xun_shou_gong = None
@@ -186,6 +181,15 @@ def pai_pan(current_dt: datetime.datetime, matter: str = "", location: str = "")
         if gan == xun_shou_gan:
             xun_shou_gong = g
             break
+
+    shi_gan_gong = None
+    for g, gan in di_pan.items():
+        if gan == hour_tg:
+            shi_gan_gong = g
+            break
+    # 时干为「甲」时甲遁于旬首六仪，值符落旬首六仪宫
+    if shi_gan_gong is None and hour_tg == '甲':
+        shi_gan_gong = xun_shou_gong
 
     tian_pan = {}
     seq = DI_PAN_ORDER  # 戊己庚辛壬癸丁丙乙

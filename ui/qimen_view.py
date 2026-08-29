@@ -59,13 +59,29 @@ class QimenView(QWidget):
             x0 = start_x + c * cell
             y0 = start_y + r * cell
 
-            # 中宫只写“中五”
+            # 中宫：显示“中五”及寄坤二的信息（天禽星、天盘干、地盘干）
             if gong == 5:
-                font = QFont("SimHei", 18)
+                font = QFont("SimHei", 16)
                 painter.setFont(font)
                 painter.setPen(QColor("dimgray"))
                 painter.drawText(QRectF(x0, y0, cell, cell),
                                  Qt.AlignCenter, "中\n五")
+                star = info.get('star', '')
+                tian = info.get('tian_pan', '')
+                di = info.get('di_pan', '')
+                painter.setFont(QFont("SimHei", 10, QFont.Bold))
+                if star:
+                    painter.setPen(QColor(STAR_COLOR))
+                    painter.drawText(QRectF(x0 + 4, y0 + 4, cell/2 - 8, cell/2 - 8),
+                                     Qt.AlignLeft | Qt.AlignTop, star)
+                if tian:
+                    painter.setPen(QColor(get_gan_color(tian)))
+                    painter.drawText(QRectF(x0 + cell/2, y0 + cell/2, cell/2 - 8, cell/2 - 8),
+                                     Qt.AlignRight | Qt.AlignBottom, f"天{tian}")
+                if di:
+                    painter.setPen(QColor(get_gan_color(di)))
+                    painter.drawText(QRectF(x0 + 4, y0 + cell/2, cell/2 - 8, cell/2 - 8),
+                                     Qt.AlignLeft | Qt.AlignBottom, f"地{di}")
                 continue
 
             # 1. 左上：八神

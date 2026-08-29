@@ -24,6 +24,17 @@ def format_meihua_result(gua_data: dict) -> str:
     if gua_data.get("ti_shi"):
         lines.append(f"卦气旺衰（月令）：体{gua_data['ti_shi']}，用{gua_data['yong_shi']}")
 
+    # 互变参断：互卦/变卦与体卦的生克
+    hu_rel = gua_data.get("hu_ti_relations") or {}
+    bian_rel = gua_data.get("bian_ti_relations") or {}
+    if hu_rel or bian_rel:
+        parts = []
+        for k, v in hu_rel.items():
+            parts.append(f"{k}{v}")
+        for k, v in bian_rel.items():
+            parts.append(f"{k}{v}")
+        lines.append(f"互变与体卦生克：" + "，".join(parts))
+
     # 显示六爻
     lines.append("\n六爻（从下往上）:")
     for i, val in enumerate(gua_data["ben_lines"]):

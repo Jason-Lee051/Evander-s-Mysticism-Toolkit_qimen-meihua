@@ -267,7 +267,7 @@ class MainWindow(QMainWindow):
             self.welcome_widget.setVisible(True)
             return
 
-        self.current_result = build_full_gua(upper, lower, moving)
+        self.current_result = build_full_gua(upper, lower, moving, dt=datetime.now())
         self.current_result['question'] = question
         self.current_result['background'] = background
 

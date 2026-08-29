@@ -1,6 +1,6 @@
 """
 core/qimen/calendar.py - 干支历、节气计算（带缓存）
-依赖：datetime, math, ephem
+依赖：datetime, math, ephem（节气优先用 lunar_python，精度更高）
 """
 
 import datetime
@@ -19,6 +19,19 @@ BASE_GANZHI_DAY = 39
 # 节气缓存：key=年份, value=OrderedDict
 _TERMS_CACHE = {}
 
+# lunar_python 可选依赖（节气/农历精度更高）；缺失时降级用 ephem
+try:
+    from lunar_python import Lunar, LunarYear  # type: ignore
+    _LUNAR_OK = True
+except Exception:  # pragma: no cover
+    _LUNAR_OK = False
+
+# lunar_python getJieQiTable 返回的键名中，个别节气为拼音（如 DA_XUE）
+_JIEQI_PINYIN = {
+    'DA_XUE': '大雪', 'DONG_ZHI': '冬至', 'XIAO_HAN': '小寒', 'DA_HAN': '大寒',
+    'LI_CHUN': '立春', 'YU_SHUI': '雨水', 'JING_ZHE': '惊蛰',
+}
+
 def year_ganzhi(year: int) -> tuple:
     """年份干支（旧历以立春换年，此处用公历年份近似：1984 为甲子）"""
     idx = (year - 1984) % 60
@@ -36,9 +49,51 @@ def hour_ganzhi(day_gz_idx: int, hour: int) -> tuple:
     return idx, JIA_ZI[idx]
 
 def get_solar_terms(year: int) -> OrderedDict:
-    """返回当年24个节气的datetime（带缓存）"""
+    """返回当年24个节气的datetime（带缓存）；优先 lunar_python 精确算法"""
     if year in _TERMS_CACHE:
         return _TERMS_CACHE[year]
+
+    if _LUNAR_OK:
+        terms = _solar_terms_lunar(year)
+    else:
+        terms = _solar_terms_ephem(year)
+
+    _TERMS_CACHE[year] = terms
+    return terms
+
+
+def _solar_terms_lunar(year: int) -> OrderedDict:
+    """
+    基于 lunar_python（寿星天文历）的节气表。
+    以农历 year-1 与 year 年的节气表为基底（覆盖公历 year-1-12 ~ year+1-03），
+    合并去重后筛出公历 year 年内的 24 个节气，保证当年 1~12 月完整无缺。
+    """
+    terms = {}
+    for y in (year - 1, year):
+        try:
+            lunar = Lunar.fromDate(datetime.datetime(y, 6, 1, 12, 0))
+        except Exception:
+            continue
+        table = lunar.getJieQiTable() or {}
+        for name, solar in table.items():
+            name = _JIEQI_PINYIN.get(name, name)
+            try:
+                dt = datetime.datetime.strptime(solar.toYmdHms(), "%Y-%m-%d %H:%M:%S")
+            except Exception:
+                continue
+            key = (name, dt.date())
+            # 跨年表重叠的同一节气（同名词同日期）保留时间较晚的一条
+            if key not in terms or dt > terms[key][1]:
+                terms[key] = (name, dt)
+    merged = OrderedDict()
+    for name, dt in sorted(terms.values(), key=lambda x: x[1]):
+        if dt.year == year:  # 只保留公历 year 年内的节气
+            merged[name] = dt
+    return merged
+
+
+def _solar_terms_ephem(year: int) -> OrderedDict:
+    """ephem 天文库兜底实现（J2000 平黄经，存在约 8 小时岁差偏差，仅作降级）"""
 
     term_names = [
         "春分", "清明", "谷雨", "立夏", "小满", "芒种",
@@ -61,16 +116,26 @@ def get_solar_terms(year: int) -> OrderedDict:
     sun = ephem.Sun()
     terms = OrderedDict()
 
+    # 搜索区间：本列表覆盖当年春分(3月)至次年惊蛰(3月初)，
+    # 故下界用当年1月1日、上界放宽到次年4月1日，避免次年1~3月的节气
+    # （小寒~惊蛰）被 hi=次年1月1日 截断而全部算错。
+    lo_base = ephem.Date(f"{year}-01-01")
+    hi_base = ephem.Date(f"{year+1}-04-01")
+
     for name, angle in zip(term_names, angles):
-        lo = ephem.Date(f"{year}-01-01")
-        hi = ephem.Date(f"{year+1}-01-01")
+        lo = lo_base
+        hi = hi_base
         target = math.radians(angle)
-        for _ in range(30):
+        for _ in range(40):
             mid = ephem.Date((lo + hi) / 2)
             observer.date = mid
             sun.compute(observer)
             ecl = float(ephem.Ecliptic(sun).lon)
-            if ecl < 0:
+            # 黄经为 0~360° 循环值，二分比较前先映射到 target 附近，
+            # 消除跨 0°（春分）时的 wrap-around，否则春分会收敛到 1月1日。
+            while ecl - target > math.pi:
+                ecl -= 2 * math.pi
+            while ecl - target < -math.pi:
                 ecl += 2 * math.pi
             if ecl < target:
                 lo = mid
@@ -79,7 +144,6 @@ def get_solar_terms(year: int) -> OrderedDict:
         dt = ephem.Date(lo + 8 * ephem.hour).datetime()
         terms[name] = dt
 
-    _TERMS_CACHE[year] = terms
     return terms
 
 def solar_terms_covering(current_dt: datetime.datetime) -> list:
@@ -132,15 +196,14 @@ def find_ju_and_dun(current_dt: datetime.datetime, terms: list) -> tuple:
     yang_dun_jq = ["冬至","小寒","大寒","立春","雨水","惊蛰","春分","清明","谷雨","立夏","小满","芒种"]
     dun_type = '阳遁' if current_jq in yang_dun_jq else '阴遁'
 
-    # 三元判断（按日柱地支）
+    # 三元判断（拆补法：符头定元）
+    # 以甲、己日为符头，每 5 日为一元（一元管 60 时辰）：
+    #   甲子~戊辰 上元，己巳~癸酉 中元，甲戌~戊寅 下元，己卯~癸未 上元……
+    # 即 60 甲子按 5 日一组切分，上中下循环。按日柱所在 5 日组定元。
+    # （"按日支子午卯酉定元"仅在符头日成立，非符头日会错，
+    #   如乙丑日属甲子上元而非"丑→下元"。）
     day_idx, _ = day_ganzhi(current_dt.date())
-    dz = DI_ZHI[day_idx % 12]
-    if dz in ['子', '午', '卯', '酉']:
-        yuan = '上元'
-    elif dz in ['寅', '申', '巳', '亥']:
-        yuan = '中元'
-    else:
-        yuan = '下元'
+    yuan = ('上元', '中元', '下元')[(day_idx // 5) % 3]
 
     ju_list = JIE_QI_JU[current_jq]
     if yuan == '上元':

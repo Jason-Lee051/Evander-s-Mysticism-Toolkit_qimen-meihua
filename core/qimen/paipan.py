@@ -23,15 +23,9 @@ DOOR_NAMES = ['休门', '生门', '伤门', '杜门', '景门', '死门', '惊�
 # 八神名称
 SHEN_NAMES = ['值符', '腾蛇', '太阴', '六合', '白虎', '玄武', '九地', '九天']
 
-# 星、门、神对应旬首的起始
-XUN_SHOU_MAP = {
-    '甲子': ('天蓬', '休门'),
-    '甲戌': ('天芮', '死门'),
-    '甲申': ('天冲', '伤门'),
-    '甲午': ('天辅', '杜门'),
-    '甲辰': ('天禽', '死门'),  # 中五寄坤二，门随死门
-    '甲寅': ('天心', '开门'),
-}
+# 注：传统「六甲旬首固定表」（甲子→天蓬/休门…）只是阳遁一局的特例。
+# 主流规则（《神奇之门》/kinqimen）为随局变：值符星=地盘旬首宫原位星、
+# 值使门=该宫原位门，见第 4 步 DOOR_BY_GONG 与 STAR_NAMES 推导。
 
 # 星、门原宫位
 STAR_BASE_GONG = {'天蓬':1, '天芮':2, '天冲':3, '天辅':4, '天禽':5, '天心':6, '天柱':7, '天任':8, '天英':9}
@@ -57,12 +51,13 @@ XUN_KONG = {
     '甲寅': ['子', '丑'],  # 坎/艮宫
 }
 
-# 驿马（按局内时支）：申子辰马在寅，寅午戌马在申，巳酉丑马在亥，亥卯未马在巳
+# 驿马（按局内时支三合局）：申子辰马在寅，寅午戌马在申，巳酉丑马在亥，亥卯未马在巳
+# 键为地支索引（子0…亥11），值为马星地支索引
 MAXING_DIZHI = {
-    (0, 3, 6): 2,   # 申子辰 -> 寅(8宫)
-    (2, 6, 9): 8,   # 寅午戌 -> 申(7宫)
-    (5, 8, 11): 11,  # 巳酉丑 -> 亥(6宫)
-    (11, 3, 7): 5,  # 亥卯未 -> 巳(4宫)
+    (8, 0, 4): 2,    # 申子辰 -> 寅(8宫)
+    (2, 6, 10): 8,   # 寅午戌 -> 申(7宫)
+    (5, 9, 1): 11,   # 巳酉丑 -> 亥(6宫)
+    (11, 3, 7): 5,   # 亥卯未 -> 巳(4宫)
 }
 
 # 天干入墓（六仪三奇入墓宫）
@@ -164,16 +159,16 @@ def pai_pan(current_dt: datetime.datetime, matter: str = "", location: str = "")
     for gong, gan in zip(reordered, DI_PAN_ORDER):
         di_pan[gong] = gan
 
-    # 4. 确定旬首、值符星、值使门
-    # 找出时柱所在的旬首
+    # 4. 确定旬首、值符星、值使门（随局变：取地盘旬首六仪宫位之星/门）
+    # 传统固定表（甲子→天蓬/休门…）只是阳遁一局的特例；
+    # 主流规则（《神奇之门》）：值符星 = 地盘旬首宫原位星，
+    # 值使门 = 该宫原位门，均随局数变化。
     xun_shou_name = None
     for name, idx in [('甲子',0), ('甲戌',10), ('甲申',20), ('甲午',30), ('甲辰',40), ('甲寅',50)]:
         if idx <= hour_gz_idx < idx+10:
             xun_shou_name = name
             break
-    zhi_fu_star, zhi_shi_door = XUN_SHOU_MAP[xun_shou_name]
 
-    # 5. 天盘干排布：时干落宫，将旬首对应的六仪加到时干宫
     # 旬首六仪
     xun_shou_gan = {'甲子':'戊','甲戌':'己','甲申':'庚','甲午':'辛','甲辰':'壬','甲寅':'癸'}[xun_shou_name]
     xun_shou_gong = None
@@ -182,6 +177,14 @@ def pai_pan(current_dt: datetime.datetime, matter: str = "", location: str = "")
             xun_shou_gong = g
             break
 
+    # 值符星 = 地盘旬首宫原位星（数序原位：天蓬1…天英9；中五为天禽）
+    zhi_fu_star = STAR_NAMES[xun_shou_gong - 1]
+    # 值使门 = 该宫原位门（数序原位：休1死2伤3杜4开6惊7生8景9；中五寄坤二=死门）
+    DOOR_BY_GONG = {1: '休门', 2: '死门', 3: '伤门', 4: '杜门',
+                    5: '死门', 6: '开门', 7: '惊门', 8: '生门', 9: '景门'}
+    zhi_shi_door = DOOR_BY_GONG[xun_shou_gong]
+
+    # 5. 天盘干排布：时干落宫，将旬首对应的六仪加到时干宫
     shi_gan_gong = None
     for g, gan in di_pan.items():
         if gan == hour_tg:
@@ -192,25 +195,29 @@ def pai_pan(current_dt: datetime.datetime, matter: str = "", location: str = "")
         shi_gan_gong = xun_shou_gong
 
     tian_pan = {}
+    # 转盘法：天盘干序列（戊己庚辛壬癸丁丙乙）恒不变，值符（旬首仪）加时干宫后，
+    # 其余天干沿洛书数序顺转（阳遁）/逆转（阴遁）。若序列也反转则成“双颠倒”，
+    # 会导致阴遁甲子时（值符归位）天盘 ≠ 地盘，违背转盘铁律。
     seq = DI_PAN_ORDER  # 戊己庚辛壬癸丁丙乙
-    if dun_type == '阴遁':
-        seq = list(reversed(seq))
-    xun_idx = seq.index(xun_shou_gan)
     fly_order = list(range(1, 10))  # 1-9
     if dun_type == '阴遁':
         fly_order = fly_order[::-1]
+    xun_idx = seq.index(xun_shou_gan)
     start_fly_idx = fly_order.index(shi_gan_gong)
     reordered_fly = fly_order[start_fly_idx:] + fly_order[:start_fly_idx]
     reordered_seq = seq[xun_idx:] + seq[:xun_idx]
     for gong, gan in zip(reordered_fly, reordered_seq):
         tian_pan[gong] = gan
 
-    # 6. 九星排布（值符落时干宫，其余星按顺时针填满九宫）
+    # 6. 九星排布（值符星落时干宫，其余星沿数序线性阳顺阴逆，与天盘干同向）
+    # 星序固定为 天蓬(1)天芮(2)天冲(3)天辅(4)天禽(5)天心(6)天柱(7)天任(8)天英(9)，
+    # 值符星为地盘旬首宫原位星（随局变）；星盘与天盘干同构（星随干转）。
     star_pos = {}
     star_order = STAR_NAMES  # 天蓬1 ... 天英9
     star_idx = star_order.index(zhi_fu_star)
-    # 星盘一律顺排（飞宫顺序1-9）
     fly_star = list(range(1, 10))
+    if dun_type == '阴遁':
+        fly_star = fly_star[::-1]
     start_idx_star = fly_star.index(shi_gan_gong)
     reordered_star_fly = fly_star[start_idx_star:] + fly_star[:start_idx_star]
     reordered_star = star_order[star_idx:] + star_order[:star_idx]
@@ -248,9 +255,9 @@ def pai_pan(current_dt: datetime.datetime, matter: str = "", location: str = "")
     if zhi_fu_gong_for_shen == 5:
         zhi_fu_gong_for_shen = 2  # 中5寄坤2
 
-    shen_order = SHEN_NAMES  # 值符,腾蛇,太阴,六合,白虎,玄武,九地,九天
-    if dun_type == '阴遁':
-        shen_order = [shen_order[0]] + list(reversed(shen_order[1:]))
+    # 八神顺序恒为 值符、腾蛇、太阴、六合、白虎、玄武、九地、九天；
+    # 阴遁仅方向逆转（沿八宫环序逆行），顺序不倒转。
+    shen_order = SHEN_NAMES
 
     gong_list = [1, 8, 3, 4, 9, 2, 7, 6]
     if dun_type == '阴遁':

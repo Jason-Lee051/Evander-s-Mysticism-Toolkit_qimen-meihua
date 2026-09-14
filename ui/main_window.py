@@ -377,7 +377,17 @@ class MainWindow(QMainWindow):
             self.analysis_text_edit.moveCursor(QTextCursor.MoveOperation.End)
 
     def on_analysis_finished(self):
-        self._stop_thinking()
+        # 双保险：若全程未收到任何正文（占位仍在），清掉"正在思考"占位并给出提示，
+        # 避免出现"分析完成"与"正在思考分析中"并存的矛盾状态。
+        if self._thinking_active and self.analysis_text_edit is not None:
+            self._stop_thinking()
+            self.analysis_text_edit.setPlainText(
+                "未收到模型正文输出。\n"
+                "常见原因：模型思考内容占满了 max_tokens（思考也计入配额）。\n"
+                "建议：在「设置 → LLM API 设置」中把 max_tokens 调大（建议 8000 以上），"
+                "或改用非思考型模型后重试。")
+        else:
+            self._stop_thinking()
         self.status_bar.showMessage("分析完成")
         self.analyze_button.setEnabled(True)
         self.analysis_worker = None

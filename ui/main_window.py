@@ -191,7 +191,7 @@ class MainWindow(QMainWindow):
             {'name': 'matter', 'label': '预测事项', 'type': 'text', 'default': ''},
             {'name': 'location', 'label': '当前位置', 'type': 'text', 'default': ''},
         ]
-        dialog = InputDialog("奇门遁甲排盘", fields, self)
+        dialog = InputDialog("奇门遁甲排盘", fields, self, method='qimen')
         if dialog.exec() != InputDialog.DialogCode.Accepted:
             self.welcome_widget.setVisible(True)
             return
@@ -223,7 +223,7 @@ class MainWindow(QMainWindow):
             {'name': 'question', 'label': '所问事项', 'type': 'text', 'default': ''},
             {'name': 'background', 'label': '背景信息（可选）', 'type': 'text', 'default': ''},
         ]
-        dialog = InputDialog("梅花易数起卦", fields, self)
+        dialog = InputDialog("梅花易数起卦", fields, self, method='meihua')
         if dialog.exec() != InputDialog.DialogCode.Accepted:
             self.welcome_widget.setVisible(True)
             return

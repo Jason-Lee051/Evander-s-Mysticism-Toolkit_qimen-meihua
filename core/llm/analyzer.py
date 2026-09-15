@@ -209,7 +209,7 @@ def analyze_qimen_stream(result: dict, matter: str, location: str,
         return
 
     try:
-        client = OpenAI(api_key=api_key, base_url=base_url)
+        client = OpenAI(api_key=api_key, base_url=base_url, timeout=60.0)
     except Exception as e:
         yield f"分析失败：{str(e)}"
         return
@@ -270,7 +270,7 @@ def analyze_meihua_stream(gua_data: dict, question: str, background: str = "",
         return
 
     try:
-        client = OpenAI(api_key=api_key, base_url=base_url)
+        client = OpenAI(api_key=api_key, base_url=base_url, timeout=60.0)
     except Exception as e:
         yield f"分析失败：{str(e)}"
         return

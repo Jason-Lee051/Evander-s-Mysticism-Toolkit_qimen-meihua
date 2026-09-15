@@ -7,10 +7,33 @@ from PySide6.QtWidgets import (QDialog, QLineEdit, QComboBox, QDateTimeEdit,
                                QDialogButtonBox, QVBoxLayout, QHBoxLayout,
                                QLabel, QWidget, QTextEdit, QPushButton,
                                QScrollArea, QGroupBox)
-from PySide6.QtCore import QDateTime, Qt
+from PySide6.QtCore import QDateTime, Qt, QTimer, QThread, Signal
 from PySide6.QtGui import QFont
 
 from core.llm.analyzer import load_config
+
+
+class SmartFillWorker(QThread):
+    """后台工作线程：调用 LLM 提取字段，不阻塞 UI"""
+    finished = Signal(dict)
+    error = Signal(str)
+
+    def __init__(self, text: str, fields: list, method: str = ""):
+        super().__init__()
+        self.text = text
+        self.fields = fields
+        self.method = method
+
+    def run(self):
+        try:
+            # 临时构造一个 Dialog 对象只用于调用 _extract_fields
+            dialog = InputDialog.__new__(InputDialog)
+            dialog.fields = self.fields
+            dialog.method = self.method
+            result = dialog._extract_fields(self.text)
+            self.finished.emit(result)
+        except Exception as e:
+            self.error.emit(str(e))
 
 
 class InputDialog(QDialog):
@@ -168,23 +191,44 @@ class InputDialog(QDialog):
             return
         self.smart_btn.setEnabled(False)
         self.smart_status.setText("AI 正在解析…")
-        try:
-            extracted = self._extract_fields(text)
-            for key, val in extracted.items():
-                if key in self.inputs:
-                    w = self.inputs[key]
-                    if isinstance(w, QLineEdit):
-                        w.setText(val or "")
-                    elif isinstance(w, QComboBox):
-                        if val and w.count() > 0 and val in [w.itemText(i) for i in range(w.count())]:
-                            idx = w.findText(val)
-                            if idx >= 0:
-                                w.setCurrentIndex(idx)
-            self.smart_status.setText(f"已填充 {len(extracted)} 个字段 ✓")
-        except Exception as e:
-            self.smart_status.setText(f"解析失败：{e}")
-        finally:
-            self.smart_btn.setEnabled(True)
+        # 用 QThread 子线程调用 AI，避免阻塞主线程导致界面卡死
+        self._smart_worker = SmartFillWorker(text, self.fields, self.method)
+        self._smart_worker.finished.connect(self._on_smart_filled)
+        self._smart_worker.error.connect(self._on_smart_error)
+        self._smart_worker.start()
+
+    def _on_smart_filled(self, extracted: dict):
+        """在主线程中安全地更新 UI"""
+        # 验证 method 字段合法性（梅花易数特需）
+        if 'method' in extracted:
+            valid_methods = ['数字起卦', '时间起卦', '汉字起卦']
+            if extracted['method'] not in valid_methods:
+                extracted['method'] = '时间起卦'
+        self._apply_extracted(extracted)
+        self.smart_status.setText(f"已填充 {len(extracted)} 个字段 ✓")
+        self.smart_btn.setEnabled(True)
+
+    def _on_smart_error(self, err: str):
+        self.smart_status.setText(f"解析失败：{err}")
+        self.smart_btn.setEnabled(True)
+
+    def _apply_extracted(self, extracted: dict):
+        """将提取结果写入字段（在主线程调用）"""
+        for key, val in extracted.items():
+            if key not in self.inputs:
+                continue
+            w = self.inputs[key]
+            if isinstance(w, QLineEdit):
+                w.setText(val or "")
+            elif isinstance(w, QComboBox):
+                if val and w.count() > 0 and val in [w.itemText(i) for i in range(w.count())]:
+                    idx = w.findText(val)
+                    if idx >= 0:
+                        w.setCurrentIndex(idx)
+        # 切换 method 时刷新条件字段可见性
+        if 'method' in extracted and 'method' in self.inputs:
+            self.on_condition_changed(extracted['method'])
+        self.smart_status.setText(f"已填充 {len(extracted)} 个字段 ✓")
 
     def _extract_fields(self, text: str) -> Dict[str, str]:
         """调用 LLM 从 text 中提取 fields 所需字段，返回 {name: value}"""
@@ -227,7 +271,11 @@ class InputDialog(QDialog):
 
         try:
             from openai import OpenAI
-            client = OpenAI(api_key=api_key, base_url=base_url)
+            client = OpenAI(
+                api_key=api_key,
+                base_url=base_url,
+                timeout=30.0  # 30秒超时，防止卡死
+            )
             resp = client.chat.completions.create(
                 model=model,
                 messages=[

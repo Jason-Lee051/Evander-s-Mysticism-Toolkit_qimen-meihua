@@ -185,7 +185,8 @@ def analyze_qimen(result: dict, matter: str, location: str,
 
 
 def analyze_qimen_stream(result: dict, matter: str, location: str,
-                         api_key: str = None, base_url: str = None, model: str = None):
+                         api_key: str = None, base_url: str = None, model: str = None,
+                         chat_history=None, is_followup=False):
     """流式分析奇门遁甲"""
     config = load_config()
     if api_key is None:
@@ -201,7 +202,8 @@ def analyze_qimen_stream(result: dict, matter: str, location: str,
 
     try:
         pan_text = format_qimen_result(result)
-        prompt = build_qimen_prompt(pan_text, matter, location)
+        prompt = build_qimen_prompt(pan_text, matter, location,
+                                    is_followup=is_followup, chat_history=chat_history)
     except Exception as e:
         yield f"分析失败：排盘数据格式化出错（{e}）"
         return
@@ -215,7 +217,7 @@ def analyze_qimen_stream(result: dict, matter: str, location: str,
     yield from _stream_chat(client, model, [
         {"role": "system", "content": "你是一位精通奇门遁甲的专业占卜师。"},
         {"role": "user", "content": prompt}
-    ], config)
+    ] + (chat_history or []), config)
 
 
 # ---------- 梅花易数 ----------
@@ -244,7 +246,8 @@ def analyze_meihua(gua_data: dict, question: str, background: str = "",
 
 
 def analyze_meihua_stream(gua_data: dict, question: str, background: str = "",
-                          api_key: str = None, base_url: str = None, model: str = None):
+                          api_key: str = None, base_url: str = None, model: str = None,
+                          chat_history=None, is_followup=False):
     """流式分析梅花易数"""
     config = load_config()
     if api_key is None:
@@ -260,7 +263,8 @@ def analyze_meihua_stream(gua_data: dict, question: str, background: str = "",
 
     try:
         pan_text = format_meihua_result(gua_data)
-        prompt = build_meihua_prompt(pan_text, question, background)
+        prompt = build_meihua_prompt(pan_text, question, background,
+                                     is_followup=is_followup, chat_history=chat_history)
     except Exception as e:
         yield f"分析失败：卦象数据格式化出错（{e}）"
         return
@@ -274,4 +278,4 @@ def analyze_meihua_stream(gua_data: dict, question: str, background: str = "",
     yield from _stream_chat(client, model, [
         {"role": "system", "content": "你是一位精通《梅花易数》的资深易学专家。"},
         {"role": "user", "content": prompt}
-    ], config)
+    ] + (chat_history or []), config)

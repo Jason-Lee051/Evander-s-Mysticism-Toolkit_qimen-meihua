@@ -62,15 +62,34 @@ def _fmt_gong(gong_list, label: str) -> str:
     names = {1: "坎", 2: "坤", 3: "震", 4: "巽", 5: "中", 6: "乾", 7: "兑", 8: "艮", 9: "离"}
     return f"（{label}宫：{','.join(names.get(g, str(g)) for g in gong_list)}）"
 
-def build_qimen_prompt(pan_text: str, matter: str, location: str) -> str:
+def build_qimen_prompt(pan_text: str, matter: str, location: str,
+                       is_followup=False, chat_history=None) -> str:
     """生成奇门遁甲分析提示词（评分强制放在开头）"""
-    prompt = f"""你是一位精通奇门遁甲的占卜师。请根据以下排盘结果，结合用户提供的预测事项和地点，进行详细、易懂的断局分析。
+    history_text = ""
+    if chat_history:
+        history_text = "\n【对话历史】\n" + "\n".join(
+            f"{'用户' if m['role']=='user' else 'AI'}：{m['content']}"
+            for m in chat_history
+        )
+    if is_followup:
+        prompt = f"""你是一位精通奇门遁甲的占卜师。用户正在对之前的排盘分析进行追问。
+请结合之前的对话历史和排盘结果，直接回答用户的追问，无需重复之前的分析。
+
+【排盘结果】：
+{pan_text}
+
+【对话历史】：
+{history_text}
+
+请回答："""
+    else:
+        prompt = f"""你是一位精通奇门遁甲的占卜师。请根据以下排盘结果，结合用户提供的预测事项和地点，进行详细、易懂的断局分析。
 
 要求：
 1. **首先，在回答的最开头给出针对所问事项的综合评分（百分制），并简要说明评分依据。**
    评分应基于盘中吉凶、用神旺衰、格局组合等因素综合给出。
 2. 接着简要解释盘局特点（如用神落宫、吉凶格局）。
-3. 然后结合事项“{matter}”和地点“{location}”，给出针对性结论和建议。
+3. 然后结合事项"{matter}"和地点"{location}"，给出针对性结论和建议。
 4. 如果涉及方位、时间，请结合盘内信息提示。
 5. 语气平和，避免绝对化。
 
@@ -86,9 +105,28 @@ def format_meihua_result(gua_data: dict) -> str:
     from core.meihua.render import format_meihua_result as _format
     return _format(gua_data)
 
-def build_meihua_prompt(pan_text: str, question: str, background: str = "") -> str:
+def build_meihua_prompt(pan_text: str, question: str, background: str = "",
+                        is_followup=False, chat_history=None) -> str:
     """生成梅花易数分析提示词（评分放在开头）"""
-    prompt = f"""你是一位精通《梅花易数》的资深易学专家。请根据以下卦象信息，为问卦者提供细致、有洞察力的解读。
+    history_text = ""
+    if chat_history:
+        history_text = "\n【对话历史】\n" + "\n".join(
+            f"{'用户' if m['role']=='user' else 'AI'}：{m['content']}"
+            for m in chat_history
+        )
+    if is_followup:
+        prompt = f"""你是一位精通《梅花易数》的资深易学专家。用户正在对之前的卦象分析进行追问。
+请结合之前的对话历史，直接回答用户的追问，无需重复之前的分析。
+
+【卦象数据】：
+{pan_text}
+
+【对话历史】：
+{history_text}
+
+请回答："""
+    else:
+        prompt = f"""你是一位精通《梅花易数》的资深易学专家。请根据以下卦象信息，为问卦者提供细致、有洞察力的解读。
 
 要求：
 1. **首先，在回答的最开头给出针对所问事项的综合评分（百分制），并简要说明评分依据。**

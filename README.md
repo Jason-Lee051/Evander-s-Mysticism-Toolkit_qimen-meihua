@@ -34,8 +34,8 @@
 ## 🚀 快速部署
 ### 1. 克隆仓库 & 初始化虚拟环境
 ```bash
-git clone https://github.com/Jason-Lee051/Evander-s-Fun-Little-Gadget_Evander-s-Mysticism-Tools.git
-cd Evander-s-Fun-Little-Gadget_Evander-s-Mysticism-Tools
+git clone https://github.com/Jason-Lee051/Evander-s-Mysticism-Toolkit_qimen-meihua.git
+cd Evander-s-Mysticism-Toolkit_qimen-meihua
 
 # 创建虚拟环境
 python -m venv venv
@@ -145,7 +145,7 @@ python main.py
 
 ---
 ## 📮 联系与反馈
-- 问题反馈：[GitHub Issues](https://github.com/Jason-Lee051/Evander-s-Fun-Little-Gadget_Evander-s-Mysticism-Tools/issues)
+- 问题反馈：[GitHub Issues](https://github.com/Jason-Lee051/Evander-s-Mysticism-Toolkit_qimen-meihua/issues)
 - 作者主页：[Jason-Lee051](https://github.com/Jason-Lee051)
 
 **Enjoy your mystical journey! ✨**

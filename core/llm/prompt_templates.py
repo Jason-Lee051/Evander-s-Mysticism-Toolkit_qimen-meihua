@@ -62,6 +62,23 @@ def _fmt_gong(gong_list, label: str) -> str:
     names = {1: "坎", 2: "坤", 3: "震", 4: "巽", 5: "中", 6: "乾", 7: "兑", 8: "艮", 9: "离"}
     return f"（{label}宫：{','.join(names.get(g, str(g)) for g in gong_list)}）"
 
+# ========== 结构化输出要求（供两种术数共用） ==========
+MARKDOWN_FORMAT_RULE = """
+【输出格式（必须遵守）】
+请使用 Markdown 语法输出，做到分段清晰、重点突出：
+- 用 `## 小标题` 划分板块（如：## 综合评分、## 盘局要点、## 结论与建议），不要写成一大段连续文字；
+- 要点用无序列表 `- ` 或有序列表 `1. ` 逐条列出，每条只讲一件事；
+- 关键结论、方位、时间、吉凶等关键词用 `**加粗**` 标出；
+- 当需要罗列多项对照信息（如各宫吉凶、多个方位/时间/方案对比、利弊分析等）时，**必须使用 Markdown 表格**呈现，格式示例：
+
+| 项目 | 情况 | 吉凶 |
+| --- | --- | --- |
+| 坎1宫 | 天蓬+休门 | 吉 |
+
+- 段落之间保留空行，避免大段文字堆叠。
+"""
+
+
 def build_qimen_prompt(pan_text: str, matter: str, location: str,
                        is_followup=False, chat_history=None) -> str:
     """生成奇门遁甲分析提示词（评分强制放在开头）"""
@@ -73,8 +90,13 @@ def build_qimen_prompt(pan_text: str, matter: str, location: str,
         )
     if is_followup:
         prompt = f"""你是一位精通奇门遁甲的占卜师。用户正在对之前的排盘分析进行追问。
-请结合之前的对话历史和排盘结果，直接回答用户的追问，无需重复之前的分析。
+请结合之前的排盘结果与对话历史，**直接回答用户的追问**，不要重复此前的完整分析。
 
+要求：
+1. 只围绕用户本次的问题作答，可引用盘面依据支撑结论；
+2. 若涉及多个因素/方案/时间点的比较，请用 Markdown 表格呈现；
+3. 简洁明确，篇幅控制在必要范围内。
+{MARKDOWN_FORMAT_RULE}
 【排盘结果】：
 {pan_text}
 
@@ -92,6 +114,13 @@ def build_qimen_prompt(pan_text: str, matter: str, location: str,
 3. 然后结合事项"{matter}"和地点"{location}"，给出针对性结论和建议。
 4. 如果涉及方位、时间，请结合盘内信息提示。
 5. 语气平和，避免绝对化。
+{MARKDOWN_FORMAT_RULE}
+建议的板块结构（可按需增减，但要分段）：
+## 综合评分
+## 盘局要点
+## 针对所问事项的结论
+## 行动建议
+（如需对比各宫吉凶、多个方案或时间点，请插入 Markdown 表格）
 
 排盘结果：
 {pan_text}
@@ -116,8 +145,13 @@ def build_meihua_prompt(pan_text: str, question: str, background: str = "",
         )
     if is_followup:
         prompt = f"""你是一位精通《梅花易数》的资深易学专家。用户正在对之前的卦象分析进行追问。
-请结合之前的对话历史，直接回答用户的追问，无需重复之前的分析。
+请结合之前的卦象数据与对话历史，**直接回答用户的追问**，不要重复此前的完整分析。
 
+要求：
+1. 只围绕用户本次的问题作答，可引用卦象依据支撑结论；
+2. 若涉及多个因素/方案/时间点的比较，请用 Markdown 表格呈现；
+3. 简洁明确，篇幅控制在必要范围内。
+{MARKDOWN_FORMAT_RULE}
 【卦象数据】：
 {pan_text}
 
@@ -136,12 +170,83 @@ def build_meihua_prompt(pan_text: str, question: str, background: str = "",
 4. 解读动爻的位置与含义及其启示。
 5. 如果能结合卦象判断应期（何时应验），可给出参考建议。
 6. 最后给出综合建议，语言通俗易懂。注意：梅花易数为传统文化参考工具，语气庄重温和，避免绝对化断言。
+{MARKDOWN_FORMAT_RULE}
+建议的板块结构（可按需增减，但要分段）：
+## 综合评分
+## 卦象总览
+## 体用与旺衰分析
+## 针对所问事项的结论
+## 应期与建议
+（如需对比本卦/互卦/变卦的吉凶，或罗列多个时间点，请插入 Markdown 表格）
 
 【问卦者信息】：
 所问事项：{question}
 背景：{background if background else "无额外信息"}
 
 【卦象数据】：
+{pan_text}
+
+请开始分析："""
+    return prompt
+
+# ========== 塔罗牌部分（新增） ==========
+def format_tarot_result(drawn: list) -> str:
+    """格式化塔罗抽牌结果为文本"""
+    from core.tarot.draw import format_drawn_cards as _fmt
+    return _fmt(drawn)
+
+
+def build_tarot_prompt(pan_text: str, question: str, background: str = '',
+                       is_followup=False, chat_history=None) -> str:
+    """生成塔罗牌分析提示词"""
+    history_text = ''
+    if chat_history:
+        history_text = "\n【对话历史】\n" + "\n".join(
+            f"{'用户' if m['role']=='user' else 'AI'}：{m['content']}"
+            for m in chat_history
+        )
+    if is_followup:
+        prompt = f"""你是一位精通韦特系塔罗牌的资深占卜师。用户正在对之前的塔罗解读进行追问。
+请结合之前的牌阵与对话历史，**直接回答用户的追问**，不要重复此前的完整分析。
+
+要求：
+1. 只围绕本次问题作答，可引用牌阵依据支撑结论；
+2. 若涉及多个因素的比较，请用 Markdown 表格呈现；
+3. 简洁明确，篇幅控制在必要范围内。
+{MARKDOWN_FORMAT_RULE}
+【问卜者信息】：
+所问事项：{question}
+背景：{background if background else "无额外信息"}
+
+【牌阵数据】：
+{pan_text}
+
+【对话历史】：
+{history_text}
+
+请回答："""
+    else:
+        prompt = f"""你是一位精通韦特系塔罗牌的资深占卜师。
+请根据以下三牌阵（过去 / 现在 / 未来）解读，为问卜者提供细致、有洞察力的分析。
+
+要求：
+1. **首先，在回答的最开头给出针对所问事项的综合评分（百分制），并简要说明评分依据。**
+   评分应基于牌面吉凶组合、正逆位含义、牌阵位置等因素综合给出。
+2. 依次解读三张牌的含义（过去、现在、未来），结合问卜事项说明每张牌的作用。
+3. 综合分析牌阵整体走向，给出针对性结论与建议。
+4. 语气庄重温和，避免绝对化断言。注意：塔罗牌为传统文化参考工具。
+{MARKDOWN_FORMAT_RULE}
+建议的板块结构（可按需增减，但要分段）：
+## 综合评分
+## 牌阵解读（过去 / 现在 / 未来）
+## 综合结论与建议
+（如需对比多张牌或时间点，请插入 Markdown 表格）
+
+【问卜者信息】：
+所问事项：{question}
+背景：{background if background else "无额外信息"}
+
+【牌阵数据】：
 {pan_text}
 
 请开始分析："""

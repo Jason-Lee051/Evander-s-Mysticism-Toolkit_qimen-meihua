@@ -11,7 +11,8 @@ import os
 from openai import OpenAI
 from .prompt_templates import (
     format_qimen_result, build_qimen_prompt,
-    format_meihua_result, build_meihua_prompt
+    format_meihua_result, build_meihua_prompt,
+    format_tarot_result, build_tarot_prompt
 )
 
 DEFAULT_BASE_URL = "https://api.deepseek.com/v1"
@@ -214,10 +215,12 @@ def analyze_qimen_stream(result: dict, matter: str, location: str,
         yield f"分析失败：{str(e)}"
         return
 
+    # 注意：对话历史已由 build_qimen_prompt 拼入 prompt 文本，
+    # 此处不可再追加 chat_history（否则历史重复发送、浪费 token 且顺序错乱）。
     yield from _stream_chat(client, model, [
         {"role": "system", "content": "你是一位精通奇门遁甲的专业占卜师。"},
         {"role": "user", "content": prompt}
-    ] + (chat_history or []), config)
+    ], config)
 
 
 # ---------- 梅花易数 ----------
@@ -275,7 +278,47 @@ def analyze_meihua_stream(gua_data: dict, question: str, background: str = "",
         yield f"分析失败：{str(e)}"
         return
 
+    # 对话历史已拼入 prompt，此处不再追加（避免重复发送）
     yield from _stream_chat(client, model, [
         {"role": "system", "content": "你是一位精通《梅花易数》的资深易学专家。"},
         {"role": "user", "content": prompt}
-    ] + (chat_history or []), config)
+    ], config)
+
+
+
+# ---------- 塔罗牌 ----------
+def analyze_tarot_stream(drawn: list, question: str, background: str = "",
+                         api_key: str = None, base_url: str = None, model: str = None,
+                         chat_history=None, is_followup=False):
+    """流式分析塔罗牌"""
+    config = load_config()
+    if api_key is None:
+        api_key = config.get("api_key", "")
+    if base_url is None:
+        base_url = config.get("base_url", DEFAULT_BASE_URL)
+    if model is None:
+        model = config.get("model", DEFAULT_MODEL)
+
+    if not api_key:
+        yield "错误：未配置 API Key"
+        return
+
+    try:
+        pan_text = format_tarot_result(drawn)
+        prompt = build_tarot_prompt(pan_text, question, background,
+                                    is_followup=is_followup, chat_history=chat_history)
+    except Exception as e:
+        yield f"分析失败：牌阵数据格式化出错（{e}）"
+        return
+
+    try:
+        client = OpenAI(api_key=api_key, base_url=base_url, timeout=60.0)
+    except Exception as e:
+        yield f"分析失败：{str(e)}"
+        return
+
+    # 对话历史已拼入 prompt，此处不再追加（避免重复发送）
+    yield from _stream_chat(client, model, [
+        {"role": "system", "content": "你是一位精通韦特系塔罗牌的资深占卜师。"},
+        {"role": "user", "content": prompt}
+    ], config)

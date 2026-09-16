@@ -15,7 +15,9 @@ from core.llm.analyzer import load_config
 
 class SmartFillWorker(QThread):
     """后台工作线程：调用 LLM 提取字段，不阻塞 UI"""
-    finished = Signal(dict)
+    # 注意：不可命名为 finished —— 会覆盖 QThread 内置 finished 信号，
+    # 导致 run() 返回时再触发一次回调（重复填充 / 重复调用 AI）。
+    extracted = Signal(dict)
     error = Signal(str)
 
     def __init__(self, text: str, fields: list, method: str = ""):
@@ -31,7 +33,7 @@ class SmartFillWorker(QThread):
             dialog.fields = self.fields
             dialog.method = self.method
             result = dialog._extract_fields(self.text)
-            self.finished.emit(result)
+            self.extracted.emit(result)
         except Exception as e:
             self.error.emit(str(e))
 
@@ -193,7 +195,7 @@ class InputDialog(QDialog):
         self.smart_status.setText("AI 正在解析…")
         # 用 QThread 子线程调用 AI，避免阻塞主线程导致界面卡死
         self._smart_worker = SmartFillWorker(text, self.fields, self.method)
-        self._smart_worker.finished.connect(self._on_smart_filled)
+        self._smart_worker.extracted.connect(self._on_smart_filled)
         self._smart_worker.error.connect(self._on_smart_error)
         self._smart_worker.start()
 
@@ -232,10 +234,11 @@ class InputDialog(QDialog):
 
     def _extract_fields(self, text: str) -> Dict[str, str]:
         """调用 LLM 从 text 中提取 fields 所需字段，返回 {name: value}"""
+        from core.llm.analyzer import _extra_body_for, DEFAULT_BASE_URL, DEFAULT_MODEL
         config = load_config()
         api_key = config.get("api_key", "")
-        base_url = config.get("base_url", "https://api.deepseek.com/v1")
-        model = config.get("model", "deepseek-v4-flash")
+        base_url = config.get("base_url", DEFAULT_BASE_URL)
+        model = config.get("model", DEFAULT_MODEL)
 
         field_names = [f.get('name') for f in self.fields]
         field_labels = {f['name']: f.get('label', f['name']) for f in self.fields}
@@ -276,17 +279,30 @@ class InputDialog(QDialog):
                 base_url=base_url,
                 timeout=30.0  # 30秒超时，防止卡死
             )
-            resp = client.chat.completions.create(
+            kwargs = dict(
                 model=model,
                 messages=[
                     {"role": "system", "content": "你是字段提取助手。"},
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=config.get("max_tokens", 4000),
+                max_tokens=min(config.get("max_tokens", 2000), 2000),
                 temperature=config.get("temperature", 0.7),
                 stream=False,
-                extra_body={"reasoning_effort": "none"}
             )
+            # 仅对思考型 DeepSeek 模型关闭思考（字段提取不需要思考）；
+            # 其他模型不发送该参数，避免不兼容报错
+            extra_body = _extra_body_for(model)
+            if extra_body:
+                kwargs["extra_body"] = extra_body
+            try:
+                resp = client.chat.completions.create(**kwargs)
+            except Exception:
+                if extra_body:
+                    # 服务端不支持该参数 → 去掉后重试
+                    kwargs.pop("extra_body", None)
+                    resp = client.chat.completions.create(**kwargs)
+                else:
+                    raise
             raw = resp.choices[0].message.content or ""
         except Exception as e:
             raise RuntimeError(f"AI 调用失败：{e}")

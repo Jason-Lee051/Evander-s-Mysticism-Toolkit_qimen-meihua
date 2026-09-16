@@ -33,7 +33,7 @@
 ---
 ## 🚀 快速部署
 ### 方式一：下载免安装版（推荐普通用户）
-1. 前往 [**Releases 发布页**](https://github.com/Jason-Lee051/Evander-s-Mysticism-Toolkit_qimen-meihua/releases) 下载最新版压缩包（如 `玄学工具箱-windows-x64.zip`）；
+1. 前往 [**Releases 发布页**](https://github.com/Jason-Lee051/Evander-s-Mysticism-Toolkit_qimen-meihua/releases) 下载最新版压缩包（如 `XuanXueToolbox-windows-x64.zip`）；
 2. 解压到任意目录，双击 **`玄学工具箱.exe`** 即可运行，**无需安装 Python 与任何依赖**；
    - 首次运行如遇 Windows SmartScreen 蓝色提示，点击「更多信息」→「仍要运行」（程序未做数字签名，属正常现象）；
 3. 点击主界面「⚙️ LLM 设置」填入 API Key 并保存，即可使用 AI 分析功能。

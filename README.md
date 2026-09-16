@@ -32,7 +32,16 @@
 
 ---
 ## 🚀 快速部署
-### 1. 克隆仓库 & 初始化虚拟环境
+### 方式一：下载免安装版（推荐普通用户）
+1. 前往 [**Releases 发布页**](https://github.com/Jason-Lee051/Evander-s-Mysticism-Toolkit_qimen-meihua/releases) 下载最新版压缩包（如 `玄学工具箱-windows-x64.zip`）；
+2. 解压到任意目录，双击 **`玄学工具箱.exe`** 即可运行，**无需安装 Python 与任何依赖**；
+   - 首次运行如遇 Windows SmartScreen 蓝色提示，点击「更多信息」→「仍要运行」（程序未做数字签名，属正常现象）；
+3. 点击主界面「⚙️ LLM 设置」填入 API Key 并保存，即可使用 AI 分析功能。
+
+> 说明：免安装版目前仅提供 **Windows x64**；你的 API 设置保存在解压目录的 `config\llm_config.json` 中，删除该文件即可恢复默认。macOS / Linux 用户请使用下方源码方式运行。
+
+### 方式二：从源码运行（开发者）
+#### 1. 克隆仓库 & 初始化虚拟环境
 ```bash
 git clone https://github.com/Jason-Lee051/Evander-s-Mysticism-Toolkit_qimen-meihua.git
 cd Evander-s-Mysticism-Toolkit_qimen-meihua
@@ -49,19 +58,19 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. 配置 LLM（可选，无需 AI 分析可跳过）（程序运行后主窗口-设置中也可以直接输入api信息，更为方便）
+#### 2. 配置 LLM（可选，无需 AI 分析可跳过）（程序运行后主窗口-设置中也可以直接输入api信息，更为方便）
 复制配置模板生成私有配置文件，填入你的大模型 API 密钥：
 ```bash
 cp config/llm_config.example.json config/llm_config.json
 # 使用文本编辑器修改 llm_config.json，填入 API Key、接口地址、模型名
 ```
 
-### 3. 启动程序
+#### 3. 启动程序
 ```bash
 python main.py
 ```
 
-### 4. 一键启动（无需 IDE）
+#### 4. 一键启动（无需 IDE）
 双击项目根目录下的 **`启动玄学工具箱.bat`** 即可直接运行程序：
 - 自动优先使用项目自带 `.venv` 虚拟环境（未创建时回退到系统 Python）
 - 自动检查核心依赖，缺失时自动执行 `pip install -r requirements.txt`
@@ -122,8 +131,11 @@ python main.py
 │   ├── tarot_view.py        # 塔罗牌阵绘制控件
 │   └── 各类弹窗对话框（含智能填写）
 ├── assets/                  # 字体、图标静态资源（待补充）
+├── packaging/               # 打包分发附带文件（使用说明等）
 ├── main.py                  # 程序入口
 ├── requirements.txt         # 依赖清单
+├── mysticism_tools.spec     # PyInstaller 打包配置（生成免安装 exe）
+├── build_exe.bat            # 一键打包构建脚本（输出到 dist/）
 └── .gitignore               # 忽略密钥、缓存、虚拟环境等文件
 ```
 

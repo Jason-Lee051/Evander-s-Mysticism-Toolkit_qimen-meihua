@@ -9,6 +9,7 @@ core/llm/analyzer.py - 调用 LLM 进行分析（支持流式和非流式）
 import json
 import os
 from openai import OpenAI
+from core.app_paths import config_file
 from .prompt_templates import (
     format_qimen_result, build_qimen_prompt,
     format_meihua_result, build_meihua_prompt,
@@ -27,8 +28,10 @@ EMPTY_REPLY_HINT = (
 )
 
 
-def load_config(config_path: str = "config/llm_config.json") -> dict:
-    """加载 LLM 配置"""
+def load_config(config_path: str = None) -> dict:
+    """加载 LLM 配置（默认路径随打包环境自动解析到 exe 所在目录）"""
+    if config_path is None:
+        config_path = config_file()
     if not os.path.exists(config_path):
         return {
             "api_key": "",

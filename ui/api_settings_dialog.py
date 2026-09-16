@@ -7,13 +7,15 @@ from PySide6.QtWidgets import (QDialog, QFormLayout, QLineEdit,
                                QSpinBox, QDoubleSpinBox, QDialogButtonBox,
                                QVBoxLayout, QLabel, QMessageBox)
 
+from core.app_paths import config_file
+
 class ApiSettingsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("LLM API 设置")
         self.resize(450, 300)
 
-        self.config_path = "config/llm_config.json"
+        self.config_path = config_file()
         self.current_config = self.load_config()
 
         layout = QVBoxLayout(self)

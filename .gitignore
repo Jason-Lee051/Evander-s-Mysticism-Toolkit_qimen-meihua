@@ -25,3 +25,7 @@ ENV/
 dist/
 build/
 *.egg-info/
+*.spec.bak
+
+# 发布压缩包（由打包流程生成）
+/release/
